@@ -75,7 +75,8 @@ def convert_word_save():
 def convert_ppt_save():
     payload = request.get_json(force=True) if request.data else {}
     nup = int(payload.get("nup") or 1)
-    return convert_office_save(file_kind="ppt", nup=nup)
+    order = normalize_nup_order(payload.get("order"))
+    return convert_office_save(file_kind="ppt", nup=nup, order=order)
 
 
 @app.post("/api/refresh-ppt-nup")
@@ -83,6 +84,7 @@ def refresh_ppt_nup():
     try:
         payload = request.get_json(force=True)
         nup = int(payload.get("nup") or 1)
+        order = normalize_nup_order(payload.get("order"))
         doc_ids = [str(item) for item in payload.get("docIds", [])]
         if not doc_ids:
             doc_ids = list(ppt_sources.keys())
@@ -97,11 +99,13 @@ def refresh_ppt_nup():
             if nup <= 1:
                 final_pdf = base_pdf
             else:
-                final_pdf = unique_pdf_path(target_dir, f"{base_pdf.stem}-{nup}合1.pdf")
-                make_nup_pdf(base_pdf, final_pdf, nup)
+                order_suffix = "上下" if order == "column" else "左右"
+                final_pdf = unique_pdf_path(target_dir, f"{base_pdf.stem}-{nup}合1-{order_suffix}.pdf")
+                make_nup_pdf(base_pdf, final_pdf, nup, order=order)
             doc = library.replace_path(doc_id, final_pdf, name=final_pdf.name)
             source["currentPdf"] = str(final_pdf)
             source["nup"] = nup
+            source["order"] = order
             refreshed.append(describe_ppt_doc(doc))
 
         return jsonify({"cancelled": False, "documents": refreshed})
@@ -110,7 +114,7 @@ def refresh_ppt_nup():
         return error_response(exc)
 
 
-def convert_office_add(file_kind: str, nup: int = 1):
+def convert_office_add(file_kind: str, nup: int = 1, order: str = "row"):
     try:
         paths = ask_office_files(file_kind)
         if not paths:
@@ -120,7 +124,7 @@ def convert_office_add(file_kind: str, nup: int = 1):
         pdf_paths = []
         target_dir = app_temp_dir() / time.strftime("%Y%m%d-%H%M%S")
         for source in paths:
-            final_pdf, result = convert_source_to_final_pdf(source, target_dir, nup if file_kind == "ppt" else 1)
+            final_pdf, result = convert_source_to_final_pdf(source, target_dir, nup if file_kind == "ppt" else 1, order)
             converted.append(result)
             pdf_paths.append(str(final_pdf))
 
@@ -132,6 +136,7 @@ def convert_office_add(file_kind: str, nup: int = 1):
                     "currentPdf": result["path"],
                     "targetDir": result["targetDir"],
                     "nup": 1,
+                    "order": order,
                 }
         return jsonify({
             "cancelled": False,
@@ -143,7 +148,7 @@ def convert_office_add(file_kind: str, nup: int = 1):
         return error_response(exc)
 
 
-def convert_office_save(file_kind: str, nup: int = 1):
+def convert_office_save(file_kind: str, nup: int = 1, order: str = "row"):
     try:
         paths = ask_office_files(file_kind)
         if not paths:
@@ -153,7 +158,7 @@ def convert_office_save(file_kind: str, nup: int = 1):
             output = ask_save_file(f"{Path(paths[0]).stem}.pdf")
             if not output:
                 return jsonify({"cancelled": True})
-            results = [convert_source_to_requested_output(paths[0], output, nup if file_kind == "ppt" else 1)]
+            results = [convert_source_to_requested_output(paths[0], output, nup if file_kind == "ppt" else 1, order)]
         else:
             output_dir = ask_directory("选择转换后 PDF 的保存文件夹")
             if not output_dir:
@@ -161,7 +166,7 @@ def convert_office_save(file_kind: str, nup: int = 1):
             results = []
             for source in paths:
                 output = unique_pdf_path(output_dir, Path(source).name)
-                results.append(convert_source_to_requested_output(source, output, nup if file_kind == "ppt" else 1))
+                results.append(convert_source_to_requested_output(source, output, nup if file_kind == "ppt" else 1, order))
 
         return jsonify({"cancelled": False, "results": results})
     except Exception as exc:
@@ -169,15 +174,16 @@ def convert_office_save(file_kind: str, nup: int = 1):
         return error_response(exc)
 
 
-def convert_source_to_final_pdf(source: str | Path, target_dir: Path, nup: int) -> tuple[Path, dict]:
+def convert_source_to_final_pdf(source: str | Path, target_dir: Path, nup: int, order: str = "row") -> tuple[Path, dict]:
     converted_pdf = unique_pdf_path(target_dir, Path(source).name)
     result = convert_office_to_pdf(source, converted_pdf)
     result["basePdf"] = str(converted_pdf)
     result["targetDir"] = str(target_dir)
     if nup <= 1:
         return converted_pdf, result
-    nup_pdf = unique_pdf_path(target_dir, f"{converted_pdf.stem}-{nup}合1.pdf")
-    nup_result = make_nup_pdf(converted_pdf, nup_pdf, nup)
+    order_suffix = "上下" if order == "column" else "左右"
+    nup_pdf = unique_pdf_path(target_dir, f"{converted_pdf.stem}-{nup}合1-{order_suffix}.pdf")
+    nup_result = make_nup_pdf(converted_pdf, nup_pdf, nup, order=order)
     result["nup"] = nup_result
     result["path"] = str(nup_pdf)
     result["name"] = nup_pdf.name
@@ -188,21 +194,26 @@ def describe_ppt_doc(doc):
     data = describe_doc(doc)
     data["kind"] = "ppt"
     data["nup"] = ppt_sources.get(doc.id, {}).get("nup", 1)
+    data["order"] = ppt_sources.get(doc.id, {}).get("order", "row")
     return data
 
 
-def convert_source_to_requested_output(source: str | Path, output: str | Path, nup: int) -> dict:
+def convert_source_to_requested_output(source: str | Path, output: str | Path, nup: int, order: str = "row") -> dict:
     output_path = Path(output)
     if nup <= 1:
         return convert_office_to_pdf(source, output_path)
     temp_dir = app_temp_dir() / time.strftime("%Y%m%d-%H%M%S")
     converted_pdf = unique_pdf_path(temp_dir, Path(source).name)
     result = convert_office_to_pdf(source, converted_pdf)
-    nup_result = make_nup_pdf(converted_pdf, output_path, nup)
+    nup_result = make_nup_pdf(converted_pdf, output_path, nup, order=order)
     result["nup"] = nup_result
     result["path"] = str(output_path.resolve())
     result["name"] = output_path.name
     return result
+
+
+def normalize_nup_order(value) -> str:
+    return "column" if value == "column" else "row"
 
 
 @app.get("/api/file/<doc_id>")

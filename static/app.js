@@ -13,11 +13,11 @@ const state = {
 const els = {
   addFiles: document.querySelector("#add-files"),
   pptAdd: document.querySelector("#ppt-add"),
-  pptRefresh: document.querySelector("#ppt-refresh"),
   pptSave: document.querySelector("#ppt-save"),
   wordAdd: document.querySelector("#word-add"),
   wordSave: document.querySelector("#word-save"),
   pptNup: document.querySelector("#ppt-nup"),
+  pptOrder: document.querySelector("#ppt-order"),
   fileList: document.querySelector("#file-list"),
   docCount: document.querySelector("#doc-count"),
   pageGrid: document.querySelector("#page-grid"),
@@ -38,8 +38,9 @@ const els = {
 
 els.addFiles.addEventListener("click", addFiles);
 els.pptAdd.addEventListener("click", () => convertOffice("ppt", "add"));
-els.pptRefresh.addEventListener("click", refreshPptFormat);
 els.pptSave.addEventListener("click", () => convertOffice("ppt", "save"));
+els.pptNup.addEventListener("change", refreshPptFormatAfterOptionChange);
+els.pptOrder.addEventListener("change", refreshPptFormatAfterOptionChange);
 els.wordAdd.addEventListener("click", () => convertOffice("word", "add"));
 els.wordSave.addEventListener("click", () => convertOffice("word", "save"));
 els.rotateLeft.addEventListener("click", () => rotateSelected(-90));
@@ -71,13 +72,14 @@ async function convertOffice(kind, mode) {
   const action = mode === "add" ? "并加入编辑区" : "并保存";
   const label = isPpt ? "PPT" : "Word";
   const nup = isPpt ? Number.parseInt(els.pptNup.value, 10) : 1;
+  const order = isPpt ? els.pptOrder.value : "row";
   const nupText = isPpt && mode === "save" && nup > 1 ? `，${nup}合1` : "";
   const detail = isPpt && mode === "add"
-    ? "正在生成基础 PDF。导入后可选择合并方式并刷新预览。"
+    ? "正在生成基础 PDF。导入后切换合并方式或排列方向会自动刷新预览。"
     : `正在生成 PDF${nupText}${action}。`;
   setBusy(true, `正在转换 ${label}`, detail);
   try {
-    const data = await api(`/api/convert-${kind}-${mode}`, { nup });
+    const data = await api(`/api/convert-${kind}-${mode}`, { nup, order });
     if (data.cancelled) return;
     if (mode === "add") {
       addDocumentsToWorkspace(data.documents);
@@ -110,6 +112,12 @@ function addDocumentsToWorkspace(documents) {
   renderPages();
 }
 
+function refreshPptFormatAfterOptionChange() {
+  if (state.busy) return;
+  if (![...state.documents.values()].some((doc) => doc.kind === "ppt")) return;
+  refreshPptFormat();
+}
+
 async function refreshPptFormat() {
   const pptDocs = [...state.documents.values()].filter((doc) => doc.kind === "ppt");
   if (!pptDocs.length) {
@@ -117,11 +125,14 @@ async function refreshPptFormat() {
     return;
   }
   const nup = Number.parseInt(els.pptNup.value, 10);
+  const order = els.pptOrder.value;
   const nupText = nup > 1 ? `${nup}合1` : "不合并";
-  setBusy(true, "正在刷新 PPT 格式", `正在重新生成 ${nupText} 并更新预览。`);
+  const orderText = formatOrder(order);
+  setBusy(true, "正在刷新 PPT 格式", `正在重新生成 ${nupText}${nup > 1 ? `，${orderText}` : ""} 并更新预览。`);
   try {
     const data = await api("/api/refresh-ppt-nup", {
       nup,
+      order,
       docIds: pptDocs.map((doc) => doc.id),
     });
     if (data.cancelled) return;
@@ -203,7 +214,7 @@ function renderFiles() {
     card.className = "file-card";
     card.innerHTML = `
       <div class="file-name">${escapeHtml(doc.name)}</div>
-      <div class="file-meta">${doc.pages} 页${doc.kind === "ppt" ? ` · PPT · ${formatNup(doc.nup)}` : ""}${doc.encrypted ? " · 已加密" : ""}</div>
+      <div class="file-meta">${doc.pages} 页${doc.kind === "ppt" ? ` · PPT · ${formatPptLayout(doc)}` : ""}${doc.encrypted ? " · 已加密" : ""}</div>
     `;
     els.fileList.appendChild(card);
   }
@@ -379,12 +390,11 @@ function refreshControls() {
   els.rotateRight.disabled = state.busy || !hasSelection;
   els.deletePages.disabled = state.busy || !hasSelection;
   els.clearSelect.disabled = state.busy || !hasSelection;
-  els.pptRefresh.disabled = state.busy || ![...state.documents.values()].some((doc) => doc.kind === "ppt");
 }
 
 function setBusy(busy, title = "正在处理", detail = "请稍候...") {
   state.busy = busy;
-  for (const control of [els.addFiles, els.pptAdd, els.pptRefresh, els.pptSave, els.wordAdd, els.wordSave, els.pptNup]) {
+  for (const control of [els.addFiles, els.pptAdd, els.pptSave, els.wordAdd, els.wordSave, els.pptNup, els.pptOrder]) {
     control.disabled = busy;
   }
   els.busyTitle.textContent = title;
@@ -396,6 +406,15 @@ function setBusy(busy, title = "正在处理", detail = "请稍候...") {
 function formatNup(nup) {
   const value = Number.parseInt(nup || 1, 10);
   return value > 1 ? `${value}合1` : "不合并";
+}
+
+function formatOrder(order) {
+  return order === "column" ? "从上到下" : "从左到右";
+}
+
+function formatPptLayout(doc) {
+  const nupText = formatNup(doc.nup);
+  return Number.parseInt(doc.nup || 1, 10) > 1 ? `${nupText} · ${formatOrder(doc.order)}` : nupText;
 }
 
 function toast(message, isError = false) {

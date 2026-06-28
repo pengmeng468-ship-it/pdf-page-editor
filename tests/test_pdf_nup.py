@@ -29,3 +29,8 @@ def test_make_nup_pdf_outputs_a4_portrait_and_expected_page_counts(tmp_path):
         first = reader.pages[0]
         assert round(float(first.mediabox.width), 1) == round(A4_WIDTH, 1)
         assert round(float(first.mediabox.height), 1) == round(A4_HEIGHT, 1)
+
+    column_output = tmp_path / "4合1-从上到下.pdf"
+    column_result = make_nup_pdf(source, column_output, 4, order="column")
+    assert column_result["order"] == "column"
+    assert column_result["pages"] == 3

@@ -15,11 +15,14 @@ NUP_GRIDS = {
     6: (2, 3),
     8: (2, 4),
 }
+NUP_ORDERS = {"row", "column"}
 
 
-def make_nup_pdf(source: str | Path, output: str | Path, per_page: int) -> dict:
+def make_nup_pdf(source: str | Path, output: str | Path, per_page: int, order: str = "row") -> dict:
     if per_page not in NUP_GRIDS:
         raise ValueError("PPT 多页合一只支持 2、4、6、8。")
+    if order not in NUP_ORDERS:
+        raise ValueError("PPT 多页合一排列方向只支持从左到右或从上到下。")
 
     src = Path(source).resolve()
     dst = Path(output).resolve()
@@ -39,8 +42,12 @@ def make_nup_pdf(source: str | Path, output: str | Path, per_page: int) -> dict:
             scale = min(cell_w / src_w, cell_h / src_h)
             drawn_w = src_w * scale
             drawn_h = src_h * scale
-            col = slot % cols
-            row = slot // cols
+            if order == "column":
+                col = slot // rows
+                row = slot % rows
+            else:
+                col = slot % cols
+                row = slot // cols
             x = col * cell_w + (cell_w - drawn_w) / 2
             y = A4_HEIGHT - (row + 1) * cell_h + (cell_h - drawn_h) / 2
             transform = Transformation().scale(scale).translate(x, y)
@@ -56,6 +63,7 @@ def make_nup_pdf(source: str | Path, output: str | Path, per_page: int) -> dict:
         "path": str(dst),
         "name": dst.name,
         "nup": per_page,
+        "order": order,
         "pages": math.ceil(total_pages / per_page) if total_pages else 0,
         "sourcePages": total_pages,
     }
