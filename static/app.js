@@ -8,6 +8,7 @@ const state = {
   selected: new Set(),
   dragIndex: null,
   busy: false,
+  activeDocId: null,
 };
 
 const els = {
@@ -97,8 +98,10 @@ async function convertOffice(kind, mode) {
 }
 
 function addDocumentsToWorkspace(documents) {
+  const addedIds = [];
   for (const doc of documents) {
     state.documents.set(doc.id, { ...doc, pdf: null, revision: 0 });
+    addedIds.push(doc.id);
     for (let i = 0; i < doc.pages; i += 1) {
       state.pages.push({
         key: crypto.randomUUID(),
@@ -108,36 +111,41 @@ function addDocumentsToWorkspace(documents) {
       });
     }
   }
+  if (addedIds.length) {
+    state.activeDocId = addedIds[0];
+    syncPptControlsFromActiveDocument();
+  }
   renderFiles();
   renderPages();
 }
 
 function refreshPptFormatAfterOptionChange() {
   if (state.busy) return;
-  if (![...state.documents.values()].some((doc) => doc.kind === "ppt")) return;
+  const activePpt = getActivePptDocument();
+  if (!activePpt) return;
   refreshPptFormat();
 }
 
 async function refreshPptFormat() {
-  const pptDocs = [...state.documents.values()].filter((doc) => doc.kind === "ppt");
-  if (!pptDocs.length) {
-    toast("当前编辑区没有可刷新的 PPT 文件。", true);
+  const activePpt = getActivePptDocument();
+  if (!activePpt) {
+    toast("请先在左侧选择要调整的 PPT 文件。", true);
     return;
   }
   const nup = Number.parseInt(els.pptNup.value, 10);
   const order = els.pptOrder.value;
   const nupText = nup > 1 ? `${nup}合1` : "不合并";
   const orderText = formatOrder(order);
-  setBusy(true, "正在刷新 PPT 格式", `正在重新生成 ${nupText}${nup > 1 ? `，${orderText}` : ""} 并更新预览。`);
+  setBusy(true, "正在刷新 PPT 格式", `正在重新生成 ${activePpt.name}：${nupText}${nup > 1 ? `，${orderText}` : ""}。`);
   try {
     const data = await api("/api/refresh-ppt-nup", {
       nup,
       order,
-      docIds: pptDocs.map((doc) => doc.id),
+      docIds: [activePpt.id],
     });
     if (data.cancelled) return;
     replaceDocumentsInWorkspace(data.documents);
-    toast(`已刷新 ${data.documents.length} 个 PPT 文件为 ${nupText}`);
+    toast(`已刷新 ${activePpt.name} 为 ${nupText}`);
   } catch (err) {
     toast(err.message, true);
   } finally {
@@ -170,6 +178,7 @@ function replaceDocumentsInWorkspace(documents) {
     state.pages.splice(insertAt, 0, ...newPages);
   }
   state.selected.clear();
+  syncPptControlsFromActiveDocument();
   renderFiles();
   renderPages();
 }
@@ -211,13 +220,54 @@ function renderFiles() {
   els.docCount.textContent = docs.length ? `${docs.length} 个文件，${state.pages.length} 页` : "未添加文件";
   for (const doc of docs) {
     const card = document.createElement("div");
-    card.className = "file-card";
+    card.role = "button";
+    card.tabIndex = 0;
+    card.className = `file-card${doc.id === state.activeDocId ? " active" : ""}`;
+    card.dataset.docId = doc.id;
     card.innerHTML = `
-      <div class="file-name">${escapeHtml(doc.name)}</div>
-      <div class="file-meta">${doc.pages} 页${doc.kind === "ppt" ? ` · PPT · ${formatPptLayout(doc)}` : ""}${doc.encrypted ? " · 已加密" : ""}</div>
+      <span class="file-main">
+        <span class="file-name">${escapeHtml(doc.name)}</span>
+        <span class="file-meta">${doc.pages} 页${doc.kind === "ppt" ? ` · PPT · ${formatPptLayout(doc)}` : ""}${doc.encrypted ? " · 已加密" : ""}</span>
+      </span>
+      <button class="file-remove" type="button" title="移除此文件">移除</button>
     `;
+    card.addEventListener("click", () => selectDocument(doc.id));
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectDocument(doc.id);
+      }
+    });
+    card.querySelector(".file-remove").addEventListener("click", (event) => {
+      event.stopPropagation();
+      removeDocument(doc.id);
+    });
     els.fileList.appendChild(card);
   }
+}
+
+function selectDocument(docId) {
+  if (state.busy) return;
+  state.activeDocId = docId;
+  syncPptControlsFromActiveDocument();
+  renderFiles();
+  refreshControls();
+}
+
+function removeDocument(docId) {
+  if (state.busy) return;
+  const doc = state.documents.get(docId);
+  if (!doc) return;
+  if (!confirm(`移除 ${doc.name} 及其所有页面？`)) return;
+  state.documents.delete(docId);
+  state.pages = state.pages.filter((page) => page.fileId !== docId);
+  state.selected.clear();
+  if (state.activeDocId === docId) {
+    state.activeDocId = state.documents.keys().next().value || null;
+  }
+  syncPptControlsFromActiveDocument();
+  renderFiles();
+  renderPages();
 }
 
 async function renderThumb(page, canvas) {
@@ -401,6 +451,18 @@ function setBusy(busy, title = "正在处理", detail = "请稍候...") {
   els.busyDetail.textContent = detail;
   els.busyOverlay.hidden = !busy;
   refreshControls();
+}
+
+function getActivePptDocument() {
+  const doc = state.documents.get(state.activeDocId);
+  return doc?.kind === "ppt" ? doc : null;
+}
+
+function syncPptControlsFromActiveDocument() {
+  const doc = getActivePptDocument();
+  if (!doc) return;
+  els.pptNup.value = String(doc.nup || 1);
+  els.pptOrder.value = doc.order || "row";
 }
 
 function formatNup(nup) {
