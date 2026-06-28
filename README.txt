@@ -1,4 +1,4 @@
-PDF轻工具
+PDF Editor-lite
 
 使用方法：
 1. 双击 PDF工具.exe。
@@ -13,4 +13,4 @@ PDF轻工具
 - 原文件不会被自动覆盖；导出和拆分都会生成新文件。
 - 支持中文路径、中文文件名、带空格的路径。
 - 如遇到损坏或加密 PDF，界面会显示错误。错误日志在：
-  %LOCALAPPDATA%\PDF轻工具\error.log
+  %LOCALAPPDATA%\PDF Editor-lite\error.log

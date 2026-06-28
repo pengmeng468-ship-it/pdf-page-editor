@@ -17,6 +17,7 @@ $VenvPython = Join-Path $Venv "Scripts\python.exe"
   --noconfirm `
   --clean `
   --onefile `
+  --windowed `
   --name "PDFTool" `
   --add-data "static;static" `
   --hidden-import tkinter `

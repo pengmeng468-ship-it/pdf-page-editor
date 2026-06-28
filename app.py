@@ -15,7 +15,7 @@ from waitress import serve
 from pdf_ops import PdfLibrary, describe_doc, export_pages, split_ranges
 
 
-APP_NAME = "PDF轻工具"
+APP_NAME = "PDF Editor-lite"
 HOST = "127.0.0.1"
 PORT = 8765
 
@@ -147,7 +147,7 @@ def error_response(exc: Exception, status: int = 400):
 
 
 def write_error_log(exc: Exception) -> None:
-    log_dir = Path(os.environ.get("LOCALAPPDATA", Path.cwd())) / "PDF轻工具"
+    log_dir = Path(os.environ.get("LOCALAPPDATA", Path.cwd())) / "PDF Editor-lite"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "error.log"
     payload = {
