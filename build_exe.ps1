@@ -21,6 +21,10 @@ $VenvPython = Join-Path $Venv "Scripts\python.exe"
   --name "PDFTool" `
   --add-data "static;static" `
   --hidden-import tkinter `
+  --hidden-import pythoncom `
+  --hidden-import pywintypes `
+  --hidden-import win32com `
+  --hidden-import win32com.client `
   app.py
 
 & $VenvPython copy_release.py

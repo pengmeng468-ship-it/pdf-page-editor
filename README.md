@@ -1,10 +1,12 @@
 # PDF Editor-lite
 
-一个 Windows 本地轻量 PDF 页面级编辑工具。程序启动后会打开本地浏览器界面，可用于拆分、合并、重排、删除和旋转 PDF 页面。
+一个 Windows 本地轻量 PDF 页面级编辑工具。程序启动后会打开本地浏览器界面，可用于拆分、合并、重排、删除、旋转 PDF 页面，并支持 Word/PowerPoint 转 PDF。
 
 ## 功能
 
 - 添加一个或多个 PDF
+- 将 Word/PowerPoint 转为 PDF
+- 将转换后的 PDF 直接加入编辑区
 - 本地缩略图预览
 - 拖拽重排页面
 - 删除选中页面
@@ -43,8 +45,13 @@ powershell -ExecutionPolicy Bypass -File .\build_exe.ps1
 
 自检会创建临时中文路径 PDF，验证合并、重排、旋转和拆分。
 
+## Office 转 PDF
+
+支持 `.doc`、`.docx`、`.ppt`、`.pptx`。程序会优先调用 Microsoft Office 原生导出 PDF；如果失败，会尝试使用 LibreOffice 命令行转换。转换后的 PDF 可直接保存，也可自动加入当前编辑区继续合并、删页、旋转和导出。
+
 ## 说明
 
-- 该项目做页面级编辑，不对内容修改。
+- 这个工具只做页面级编辑，不直接修改 PDF 原有文字内容。
 - 默认不会覆盖原文件，导出时会弹出系统另存为窗口。
 - 前端预览使用本地内置 PDF.js，不依赖联网。
+- Office/LibreOffice 不是由 EXE 内置安装的，需要目标电脑本身已安装至少其中一种转换引擎。

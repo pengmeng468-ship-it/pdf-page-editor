@@ -3,12 +3,15 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+from tests.test_office_convert import test_unique_pdf_path_uses_source_stem_and_avoids_overwrite
 from tests.test_pdf_ops import test_export_and_split_with_chinese_paths
 
 
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="pdf工具_") as tmp:
-        test_export_and_split_with_chinese_paths(Path(tmp))
+        root = Path(tmp)
+        test_export_and_split_with_chinese_paths(root)
+        test_unique_pdf_path_uses_source_stem_and_avoids_overwrite(root / "office")
     print("SELF_CHECK_OK")
 
 

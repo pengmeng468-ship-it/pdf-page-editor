@@ -57,6 +57,16 @@ button.primary:hover {
   background: var(--accent-dark);
 }
 
+button.secondary {
+  background: #fff;
+  border-color: #c9d6df;
+  color: var(--accent-dark);
+}
+
+button.secondary:hover {
+  background: #f2f8fa;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);

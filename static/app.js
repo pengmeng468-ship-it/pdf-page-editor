@@ -11,6 +11,8 @@ const state = {
 
 const els = {
   addFiles: document.querySelector("#add-files"),
+  convertAdd: document.querySelector("#convert-add"),
+  convertSave: document.querySelector("#convert-save"),
   fileList: document.querySelector("#file-list"),
   docCount: document.querySelector("#doc-count"),
   pageGrid: document.querySelector("#page-grid"),
@@ -27,6 +29,8 @@ const els = {
 };
 
 els.addFiles.addEventListener("click", addFiles);
+els.convertAdd.addEventListener("click", convertOfficeAndAdd);
+els.convertSave.addEventListener("click", convertOfficeAndSave);
 els.rotateLeft.addEventListener("click", () => rotateSelected(-90));
 els.rotateRight.addEventListener("click", () => rotateSelected(90));
 els.deletePages.addEventListener("click", deleteSelected);
@@ -42,25 +46,58 @@ async function addFiles() {
   try {
     const data = await api("/api/open-files", {});
     if (data.cancelled) return;
-    for (const doc of data.documents) {
-      state.documents.set(doc.id, { ...doc, pdf: null });
-      for (let i = 0; i < doc.pages; i += 1) {
-        state.pages.push({
-          key: crypto.randomUUID(),
-          fileId: doc.id,
-          pageIndex: i,
-          rotation: 0,
-        });
-      }
-    }
-    renderFiles();
-    renderPages();
-    toast(`已添加 ${data.documents.length} 个文件`);
+    addDocumentsToWorkspace(data.documents);
+    toast(`已添加 ${data.documents.length} 个 PDF`);
   } catch (err) {
     toast(err.message, true);
   } finally {
     setBusy(false);
   }
+}
+
+async function convertOfficeAndAdd() {
+  setBusy(true);
+  try {
+    const data = await api("/api/convert-office-add", {});
+    if (data.cancelled) return;
+    addDocumentsToWorkspace(data.documents);
+    const engines = summarizeEngines(data.converted);
+    toast(`已转换并加入 ${data.documents.length} 个文件${engines}`);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function convertOfficeAndSave() {
+  setBusy(true);
+  try {
+    const data = await api("/api/convert-office-save", {});
+    if (data.cancelled) return;
+    const engines = summarizeEngines(data.results);
+    toast(`已转换 ${data.results.length} 个 PDF${engines}`);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function addDocumentsToWorkspace(documents) {
+  for (const doc of documents) {
+    state.documents.set(doc.id, { ...doc, pdf: null });
+    for (let i = 0; i < doc.pages; i += 1) {
+      state.pages.push({
+        key: crypto.randomUUID(),
+        fileId: doc.id,
+        pageIndex: i,
+        rotation: 0,
+      });
+    }
+  }
+  renderFiles();
+  renderPages();
 }
 
 async function renderPages() {
@@ -86,8 +123,9 @@ async function renderPages() {
     card.addEventListener("drop", onDrop);
     card.addEventListener("dragend", onDragEnd);
     els.pageGrid.appendChild(card);
-    renderThumb(page, card.querySelector("canvas")).catch(() => {
+    renderThumb(page, card.querySelector("canvas")).catch((err) => {
       card.querySelector(".thumb-wrap").textContent = "预览失败";
+      console.error(err);
     });
   });
   refreshControls();
@@ -282,6 +320,8 @@ function refreshControls() {
 
 function setBusy(busy) {
   els.addFiles.disabled = busy;
+  els.convertAdd.disabled = busy;
+  els.convertSave.disabled = busy;
   els.exportBtn.disabled = busy || !state.pages.length;
   els.splitBtn.disabled = busy || !state.pages.length;
 }
@@ -294,6 +334,12 @@ function toast(message, isError = false) {
   toast.timer = setTimeout(() => {
     els.toast.hidden = true;
   }, isError ? 6500 : 4200);
+}
+
+function summarizeEngines(results) {
+  if (!results?.length) return "";
+  const engines = [...new Set(results.map((item) => item.engine).filter(Boolean))];
+  return engines.length ? `（${engines.join(" / ")}）` : "";
 }
 
 function escapeHtml(text) {
