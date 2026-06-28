@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PDF轻工具</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">PDF</div>
+          <div>
+            <h1>PDF轻工具</h1>
+            <p id="doc-count">未添加文件</p>
+          </div>
+        </div>
+        <button id="add-files" class="primary">添加 PDF</button>
+        <div id="file-list" class="file-list"></div>
+      </aside>
+
+      <main class="workspace">
+        <header class="toolbar">
+          <div class="tool-group">
+            <button id="rotate-left" title="左转 90°">↶</button>
+            <button id="rotate-right" title="右转 90°">↷</button>
+            <button id="delete-pages" title="删除选中页">删除</button>
+          </div>
+          <div class="tool-group">
+            <button id="select-all">全选</button>
+            <button id="clear-select">取消选择</button>
+          </div>
+          <div class="tool-group grow">
+            <input id="split-ranges" placeholder="拆分范围，如 1-3,8,10-12" />
+            <button id="split-btn">拆分</button>
+          </div>
+          <button id="export-btn" class="primary">导出 PDF</button>
+        </header>
+
+        <section id="empty-state" class="empty-state">
+          <h2>添加 PDF 后开始处理</h2>
+          <p>可合并多个文件、拖拽重排页面、删除页面、旋转页面，并导出为新 PDF。</p>
+        </section>
+
+        <section id="page-grid" class="page-grid" aria-label="PDF 页面"></section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
